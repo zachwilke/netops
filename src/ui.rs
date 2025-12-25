@@ -411,7 +411,7 @@ fn render_nmap(f: &mut Frame, app: &App, area: Rect) {
 
 fn render_connections(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
-        .direction(Direction::Horizontal)
+        .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
         .split(area);
         
