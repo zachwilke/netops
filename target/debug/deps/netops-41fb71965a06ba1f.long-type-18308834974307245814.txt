@@ -1,0 +1,1 @@
+_: FromIterator<ratatui::prelude::Line<'_>>
