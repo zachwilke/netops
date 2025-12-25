@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use pnet_datalink::NetworkInterface;
 use crate::tools::ping::{PingResult, PingTask};
-use crate::tools::{interfaces, ping, dns, sniffer, mtr, nmap, geoip, connections};
+use crate::tools::{interfaces, ping, dns, sniffer, mtr, nmap, arpscan, geoip, connections};
 use crate::tools::dns::DnsResult;
 
 use tokio::sync::mpsc::{self, Receiver, error::TryRecvError};
@@ -22,6 +22,7 @@ pub enum CurrentScreen {
     Mtr,
     Nmap,
     Connections,
+    ArpScan,
     // Traceroute,
 }
 
@@ -80,6 +81,13 @@ pub struct App {
     pub nmap_rx: Option<crossbeam::channel::Receiver<String>>,
     pub nmap_output: VecDeque<String>,
     pub nmap_scroll: u16,
+
+    // ArpScan State
+    pub arpscan_input: Input,
+    pub arpscan_active: bool,
+    pub arpscan_rx: Option<crossbeam::channel::Receiver<String>>,
+    pub arpscan_output: VecDeque<String>,
+    pub arpscan_scroll: u16,
 
     // ASN / Connections
     pub geoip_reader: Option<geoip::GeoIpReader>,
@@ -157,6 +165,14 @@ impl App {
             nmap_rx: None,
             nmap_output: VecDeque::with_capacity(1000),
             nmap_scroll: 0,
+
+
+
+            arpscan_input: Input::default(),
+            arpscan_active: false,
+            arpscan_rx: None,
+            arpscan_output: VecDeque::with_capacity(1000),
+            arpscan_scroll: 0,
 
             geoip_reader: geoip::GeoIpReader::new(include_bytes!("../GeoLite2-ASN_20251224/GeoLite2-ASN.mmdb")).ok(),
             active_connections: HashMap::new(),
@@ -377,6 +393,15 @@ impl App {
              }
         }
 
+        if let Some(rx) = &self.arpscan_rx {
+             while let Ok(line) = rx.try_recv() {
+                 self.arpscan_output.push_back(line);
+                 if self.arpscan_output.len() > 1000 {
+                     self.arpscan_output.pop_front();
+                }
+             }
+        }
+
         // Update Traffic Graph (Total, Rx, Tx)
         let current_count = self.sniffer.packet_count.load(std::sync::atomic::Ordering::Relaxed);
         let current_rx = self.sniffer.in_packets.load(std::sync::atomic::Ordering::Relaxed);
@@ -531,6 +556,12 @@ impl App {
                 ("-Pn", "No Ping", " -Pn"),
                 ("-O", "OS Detection", " -O"),
             ],
+            CurrentScreen::ArpScan => vec![
+                ("-l", "Localnet", " -l"),
+                ("-I <iface>", "Interface", " -I en0"),
+                ("-q", "Quiet", " -q"),
+                ("-r", "Retry", " -r 3"),
+            ],
             _ => vec![]
         }
     }
@@ -539,6 +570,33 @@ impl App {
         self.nmap_active = false;
         self.nmap_rx = None;
         self.nmap_output.push_back("Scan stopped/detached.".to_string());
+    }
+
+    pub fn start_arpscan(&mut self) {
+        if self.arpscan_active { return; }
+        
+        let target = self.arpscan_input.value().to_string();
+        if target.is_empty() { return; }
+
+        self.arpscan_output.clear();
+        self.arpscan_output.push_back(format!("Starting arp-scan with args: {}", target));
+        
+        // Use a channel for async output
+        let (tx, rx) = crossbeam::channel::unbounded();
+        self.arpscan_rx = Some(rx);
+        self.arpscan_active = true;
+        
+        // Spawn thread for arpscan execution
+        std::thread::spawn(move || {
+            let task = arpscan::ArpScanTask::new(target, tx);
+            task.run();
+        });
+    }
+
+    pub fn stop_arpscan(&mut self) {
+        self.arpscan_active = false;
+        self.arpscan_rx = None;
+        self.arpscan_output.push_back("Scan stopped/detached.".to_string());
     }
 
     pub fn start_connections_monitor(&mut self) {

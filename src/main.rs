@@ -114,9 +114,14 @@ async fn run_app<B: ratatui::backend::Backend>(
                                              CurrentScreen::Nmap => {
                                                   for c in val.chars() {
                                                      app.nmap_input.handle_event(&Event::Key(crossterm::event::KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::NONE)));
-                                                 }
-                                             }
-                                             _ => {}
+                                                  }
+                                              }
+                                              CurrentScreen::ArpScan => {
+                                                  for c in val.chars() {
+                                                     app.arpscan_input.handle_event(&Event::Key(crossterm::event::KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::NONE)));
+                                                  }
+                                              }
+                                              _ => {}
                                          }
                                      }
                                      app.show_options = false;
@@ -165,6 +170,10 @@ async fn run_app<B: ratatui::backend::Backend>(
                             }
                             KeyCode::Char('r') => {
                                 app.current_screen = CurrentScreen::Nmap;
+                                handled = true;
+                            }
+                            KeyCode::Char('a') => {
+                                app.current_screen = CurrentScreen::ArpScan;
                                 handled = true;
                             }
                             KeyCode::Char('c') => {

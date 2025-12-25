@@ -4,6 +4,7 @@ pub mod dns;
 pub mod sniffer;
 pub mod mtr;
 pub mod nmap;
+pub mod arpscan;
 pub mod geoip;
 pub mod connections;
 
