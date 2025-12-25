@@ -656,7 +656,7 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
         .constraints(if app.ping_rtt_history.is_empty() { 
             vec![Constraint::Percentage(100)] 
         } else { 
-            vec![Constraint::Percentage(30), Constraint::Percentage(70)] 
+            vec![Constraint::Percentage(60), Constraint::Percentage(40)] 
         }).split(chunks[1]);
 
     // Chart if active
@@ -671,8 +671,8 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
         .x_axis(Axis::default().bounds([0.0, 100.0]))
         .y_axis(Axis::default().bounds([0.0, ping_max as f64]));
         
-        f.render_widget(chart, content_chunks[0]);
-        content_chunks[1]
+        f.render_widget(chart, content_chunks[1]);
+        content_chunks[0]
     } else {
         content_chunks[0]
     };
