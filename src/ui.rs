@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
 };
 
-pub mod globe;
+
 
 use crate::app::{App, CurrentScreen};
 use crate::theme::THEME;
@@ -412,7 +412,7 @@ fn render_nmap(f: &mut Frame, app: &App, area: Rect) {
 fn render_connections(f: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(area);
         
     use ratatui::widgets::{Table, Row};
@@ -458,27 +458,40 @@ fn render_connections(f: &mut Frame, app: &App, area: Rect) {
     
     f.render_widget(table, chunks[0]);
     
-    // Globe Rendering
+    // Map Rendering
     let mut locs = vec![];
     for c in connections {
-        if let Some(l) = c.location {
-            locs.push(l);
+        if let Some((lat, lon)) = c.location {
+             // Map expects (lon, lat)
+            locs.push((lon, lat));
         }
     }
     
-    let globe_block = Block::default()
+    let map_block = Block::default()
         .title(" World Map ")
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(THEME.accent));
         
-    let mut globe = crate::ui::globe::Globe::new(&locs)
-        .style(Style::default().fg(THEME.primary))
-        .block(globe_block);
-        
-    globe.rotation = app.globe_rotation;
+    use ratatui::widgets::canvas::{Canvas, Map, MapResolution, Points};
     
-    f.render_widget(globe, chunks[1]);
+    let canvas = Canvas::default()
+        .block(map_block)
+        .x_bounds([-225.0, 225.0])
+        .y_bounds([-90.0, 90.0])
+        .paint(|ctx| {
+            ctx.draw(&Map {
+                color: THEME.primary,
+                resolution: MapResolution::High,
+            });
+             ctx.layer();
+            ctx.draw(&Points {
+                coords: &locs,
+                color: THEME.error,
+            });
+        });
+        
+    f.render_widget(canvas, chunks[1]);
 }
 
 fn render_dashboard(f: &mut Frame, app: &App, area: Rect) {
