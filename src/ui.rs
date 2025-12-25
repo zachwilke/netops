@@ -53,8 +53,8 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(Paragraph::new(" NETOPS ").style(logo_style).bg(THEME.surface), header_chunks[0]);
 
     // Custom Tabs
-    let tabs = ["D", "P", "N", "S", "M", "R", "C"]; // Short codes
-    let tab_names = ["Dash", "Ping", "DNS", "Sniff", "MTR", "Scan", "Conns"];
+    let tabs = ["D", "P", "N", "S", "M", "R", "A", "C"]; // Short codes
+    let tab_names = ["Dash", "Ping", "DNS", "Sniff", "MTR", "Scan", "Arp", "Conns"];
     
     let current_idx = match app.current_screen {
         CurrentScreen::Dashboard => 0,
@@ -63,7 +63,8 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         CurrentScreen::Sniffer => 3,
         CurrentScreen::Mtr => 4,
         CurrentScreen::Nmap => 5,
-        CurrentScreen::Connections => 6,
+        CurrentScreen::ArpScan => 6,
+        CurrentScreen::Connections => 7,
     };
 
     let mut tab_spans = vec![];
@@ -94,6 +95,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         CurrentScreen::Sniffer => render_sniffer(f, app, content_area),
         CurrentScreen::Mtr => render_mtr(f, app, content_area),
         CurrentScreen::Nmap => render_nmap(f, app, content_area),
+        CurrentScreen::ArpScan => render_arpscan(f, app, content_area),
         CurrentScreen::Connections => render_connections(f, app, content_area),
     }
 
@@ -222,6 +224,12 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
             " [Enter]  Start Scan",
             " [Esc]    Stop/Detach",
             " Supports standard flags (e.g. -p 80,443 -sV)",
+        ],
+        CurrentScreen::ArpScan => vec![
+            " Arp Scanner ",
+            " [Enter]  Start Scan",
+            " [Esc]    Stop",
+            " Flags: -l (local) -I <interface>",
         ],
         CurrentScreen::Connections => vec![
              " Active Connections ",
@@ -405,6 +413,43 @@ fn render_nmap(f: &mut Frame, app: &App, area: Rect) {
     
     // Auto-scroll to bottom if running? implementation for List scrolling usually requires ListState (TODO)
     // For now simple list.
+    let list = List::new(items).block(output_block).style(Style::default().fg(THEME.fg));
+    f.render_widget(list, chunks[1]);
+}
+
+fn render_arpscan(f: &mut Frame, app: &App, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
+        .split(area);
+
+    let input_border_color = if app.arpscan_active { THEME.success } else { THEME.border };
+    let input_block = Block::default()
+        .title(" ArpScan Args ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(input_border_color));
+    
+    let input = Paragraph::new(app.arpscan_input.value()).block(input_block).style(Style::default().fg(THEME.fg));
+    f.render_widget(input, chunks[0]);
+
+    if !app.arpscan_active {
+         f.set_cursor_position((
+            chunks[0].x + app.arpscan_input.visual_cursor() as u16 + 1,
+            chunks[0].y + 1,
+        ));
+    }
+
+    let output_block = Block::default()
+        .title(" ArpScan Results ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(THEME.border));
+        
+    let items: Vec<ListItem> = app.arpscan_output.iter().map(|line| {
+        ListItem::new(Line::from(line.clone()))
+    }).collect();
+    
     let list = List::new(items).block(output_block).style(Style::default().fg(THEME.fg));
     f.render_widget(list, chunks[1]);
 }
@@ -665,7 +710,7 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
         let ping_max = app.ping_rtt_history.iter().max().unwrap_or(&100).max(&50) * 2;
 
         let chart = Chart::new(vec![
-            Dataset::default().marker(symbols::Marker::Braille).style(Style::default().fg(THEME.primary)).data(&ping_data)
+            Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
         ])
         .block(Block::default().title(" RTT History ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
         .x_axis(Axis::default().bounds([0.0, 100.0]))
