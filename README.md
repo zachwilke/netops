@@ -2,7 +2,7 @@
 
 NetOps is a powerful, terminal-based network monitoring and diagnostic tool written in Rust. It combines multiple network utilities into a single, cohesive TUI (Text User Interface) optimized for speed and usability.
 
-![NetOps Dashboard](https://github.com/user-attachments/assets/placeholder-image) -> *Note: You can add a screenshot here later*
+![NetOps Dashboard](assets/dashboard.png)
 
 ## Features
 
