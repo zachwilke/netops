@@ -698,29 +698,23 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
     // Ping Content
     let content_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(if app.ping_rtt_history.is_empty() { 
-            vec![Constraint::Percentage(100)] 
-        } else { 
-            vec![Constraint::Percentage(60), Constraint::Percentage(40)] 
-        }).split(chunks[1]);
+        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+        .split(chunks[1]);
 
-    // Chart if active
-    let list_area = if !app.ping_rtt_history.is_empty() {
-        let ping_data: Vec<(f64, f64)> = app.ping_rtt_history.iter().enumerate().map(|(i, &v)| (i as f64, v as f64)).collect();
-        let ping_max = app.ping_rtt_history.iter().max().unwrap_or(&100).max(&50) * 2;
+    // Chart
+    let ping_data: Vec<(f64, f64)> = app.ping_rtt_history.iter().enumerate().map(|(i, &v)| (i as f64, v as f64)).collect();
+    let ping_max = app.ping_rtt_history.iter().max().unwrap_or(&100).max(&50) * 2;
 
-        let chart = Chart::new(vec![
-            Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
-        ])
-        .block(Block::default().title(" RTT History ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
-        .x_axis(Axis::default().bounds([0.0, 100.0]))
-        .y_axis(Axis::default().bounds([0.0, ping_max as f64]));
-        
-        f.render_widget(chart, content_chunks[1]);
-        content_chunks[0]
-    } else {
-        content_chunks[0]
-    };
+    let chart = Chart::new(vec![
+        Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
+    ])
+    .block(Block::default().title(" RTT History ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
+    .x_axis(Axis::default().bounds([0.0, 100.0]))
+    .y_axis(Axis::default().bounds([0.0, ping_max as f64]));
+    
+    f.render_widget(chart, content_chunks[1]);
+    
+    let list_area = content_chunks[0];
 
     // Results List
     let items: Vec<ListItem> = app.ping_history.iter().rev().map(|res| {
