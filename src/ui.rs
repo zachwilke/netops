@@ -171,21 +171,22 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(THEME.primary))
-        .bg(THEME.bg); // Opaque background
+        .bg(THEME.bg); 
         
     // Calculate centered rect
     let popup_area = Rect {
-        x: area.width.saturating_sub(60) / 2,
-        y: area.height.saturating_sub(20) / 2,
-        width: 60,
-        height: 20,
+        x: area.width.saturating_sub(70) / 2,
+        y: area.height.saturating_sub(26) / 2,
+        width: 70,
+        height: 26,
     };
     
     f.render_widget(Clear, popup_area);
     
     let mut text = vec![
         Line::from(vec![Span::styled(" Global Keys ", Style::default().fg(THEME.accent).add_modifier(Modifier::BOLD))]),
-        Line::from(" [Shift + D,P,N,S,M,R,C] Switch Tab"),
+        Line::from(" [Alt + 1-8]     Switch Tab (Dash/Ping/DNS...)"),
+        Line::from(" [Shift + Key]   Legacy Switch (D,P,N...)"),
         Line::from(" [H] or [?]      Toggle Help"),
         Line::from(" [Ctrl+F]        Tool Options/Flags"),
         Line::from(" [Q]             Quit"),
@@ -195,51 +196,73 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
     let tool_specific = match app.current_screen {
         CurrentScreen::Dashboard => vec![
             " Dashboard ",
-            " Read-only view of network stats.",
+            " Overview of network traffic and connectivity.",
+            " - Top Left:  Real-time WAN I/O bandwidth.",
+            " - Top Right: Active connection count.",
+            " - Bot Left:  Interface status.",
+            " - Bot Right: Top 5 Remote ASNs (Organizations).",
         ],
         CurrentScreen::Ping => vec![
             " Ping Tool ",
-            " [Enter]  Start Ping",
-            " [Esc]    Stop",
-            " [Graph]  Real-time Latency (Bottom)",
-            " Flags: -i <sec> -s <bytes> -c <count>",
-            " Ex: google.com -i 0.5 -c 10",
+            " [Enter]  Start Ping to target",
+            " [Esc]    Stop Ping",
+            " ",
+            " Features:",
+            " - Real-time Latency Graph (Bottom)",
+            " - Live Statistics (Min/Avg/Max/Loss)",
+            " - Flags: -i <sec> -s <bytes> -c <count>",
         ],
         CurrentScreen::Dns => vec![
             " DNS Resolver ",
-            " [Enter]  Resolve",
-            " [Tab]    Cycle Record Type (A/AAAA/MX...)",
+            " [Enter]  Resolve Domain",
+            " [Tab]    Cycle Record Type (A -> AAAA -> MX...)",
+            " ",
+            " Returns detailed records including TTL.",
         ],
         CurrentScreen::Sniffer => vec![
             " Packet Sniffer ",
             " [Enter]      Start/Stop Capture",
             " [Left/Right] Select Interface",
-            " [Filter]     Type to filter (Src/Dst/Proto)",
+            " [Filter]     BPF Syntax (e.g. 'tcp port 80')",
+            " ",
+            " Displays: Time, Protocol, Source, Dest, Length, Info",
         ],
         CurrentScreen::Mtr => vec![
             " My Traceroute (MTR) ",
             " [Enter]    Start Trace",
             " [Esc]      Stop",
-            " [Up/Down]  Select Hop to Graph",
-            " Flags: -i <sec> -m <hops> -c <cycles>",
+            " [Up/Down]  Select Hop to view Latency Graph",
+            " ",
+            " Shows path to target with loss & jitter per hop.",
         ],
         CurrentScreen::Nmap => vec![
-            " Port Scanner (Nmap) ",
+            " Port Scanner ",
             " [Enter]  Start Scan",
             " [Esc]    Stop/Detach",
-            " Supports standard flags (e.g. -p 80,443 -sV)",
+            " ",
+            " Useful Flags (Ctrl+F):",
+            " -p 80,443   Specific ports",
+            " -F          Fast scan (top 100 ports)",
+            " -sV         Service Version detection",
         ],
         CurrentScreen::ArpScan => vec![
             " Arp Scanner ",
             " [Enter]  Start Scan",
             " [Esc]    Stop",
-            " Flags: -l (local) -I <interface>",
+            " ",
+            " automatically scans local network if no args given.",
+            " -l: Localnet (default)",
+            " -I: Interface (e.g. -I en0)",
+            " ",
+            " View switches to Table composed of IP, MAC to Vendor.",
         ],
         CurrentScreen::Connections => vec![
-             " Active Connections ",
-             " Shows live netstat info with ASN data.",
-             " [Globe] Real-time World Map",
-             " refresh rate: 2s",
+            " Active Connections ",
+            " Monitors live socket connections.",
+            " ",
+            " - [Table] Real-time list of remote peers.",
+            " - [Map]   World map showing peer locations.",
+            " - Shows ASN (ISP/Org) for each IP.",
         ],
     };
     
@@ -295,7 +318,6 @@ fn render_mtr(f: &mut Frame, app: &mut App, area: Rect) {
             ratatui::widgets::Cell::from(format!("{}ms", hop.last)).style(Style::default().fg(lat_color)),
             ratatui::widgets::Cell::from(format!("{}ms", hop.avg)),
             ratatui::widgets::Cell::from(format!("{}ms", hop.best)),
-            ratatui::widgets::Cell::from(format!("{}ms", hop.worst)),
             ratatui::widgets::Cell::from(format!("{}ms", hop.jitter)),
         ];
         Row::new(cells).style(Style::default().fg(THEME.fg))
@@ -457,18 +479,49 @@ fn render_arpscan(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    let output_block = Block::default()
-        .title(" ArpScan Results ")
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(THEME.border));
-        
-    let items: Vec<ListItem> = app.arpscan_output.iter().map(|line| {
-        ListItem::new(Line::from(line.clone()))
-    }).collect();
+    // Results Table or Raw Output
+    let results_area = chunks[1];
     
-    let list = List::new(items).block(output_block).style(Style::default().fg(THEME.fg));
-    f.render_widget(list, chunks[1]);
+    if app.arpscan_results.is_empty() {
+        // Show raw output if no structured results yet (e.g. startup or error)
+        let output_block = Block::default()
+            .title(" Log Output ")
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(THEME.border));
+            
+        let items: Vec<ListItem> = app.arpscan_output.iter().rev().take(50).map(|line| {
+            ListItem::new(Line::from(line.clone()))
+        }).collect();
+        
+        f.render_widget(List::new(items).block(output_block).style(Style::default().fg(THEME.muted)), results_area);
+    } else {
+        use ratatui::widgets::{Table, Row};
+        
+        let count = app.arpscan_results.len();
+        let title = format!(" Scan Results ({}) ", count);
+        
+        let header = Row::new(["IP Address", "MAC Address", "Vendor"].iter().map(|h| ratatui::widgets::Cell::from(*h).style(Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))))
+            .style(Style::default().bg(THEME.surface)).height(1);
+
+        let rows = app.arpscan_results.iter().map(|entry| {
+            Row::new(vec![
+                ratatui::widgets::Cell::from(entry.ip.clone()),
+                ratatui::widgets::Cell::from(entry.mac.clone()).style(Style::default().fg(THEME.secondary)),
+                ratatui::widgets::Cell::from(entry.vendor.clone()),
+            ]).style(Style::default().fg(THEME.fg))
+        });
+
+        let table = Table::new(rows, [
+            Constraint::Length(16),
+            Constraint::Length(20),
+            Constraint::Min(20)
+        ].as_ref())
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).title(title).border_style(Style::default().fg(THEME.border)));
+        
+        f.render_widget(table, results_area);
+    }
 }
 
 fn render_connections(f: &mut Frame, app: &App, area: Rect) {
@@ -667,30 +720,63 @@ fn render_dashboard(f: &mut Frame, app: &App, area: Rect) {
     ];
     draw_chart(f, row2[1], "Jitter", &jit_data, None, THEME.accent, None, stats_jit);
 
-    // -- Bottom Section: Interfaces List --
-    let list_area = chunks[2];
+    // -- Bottom Section: Interfaces & Top ASNs --
+    let bottom_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(chunks[2]);
+
+    // Interfaces List
+    let list_area = bottom_chunks[0];
     let block = Block::default()
-        .borders(Borders::TOP)
+        .borders(Borders::TOP | Borders::RIGHT)
         .border_style(Style::default().fg(THEME.border))
         .bg(THEME.bg)
-        .title(Span::styled(" Network Interfaces ", Style::default().fg(THEME.muted)));
+        .title(Span::styled(" Interfaces ", Style::default().fg(THEME.muted)));
     
     let items: Vec<ListItem> = app.interfaces.iter().map(|i| {
         let name_color = if i.is_up() { THEME.success } else { THEME.error };
         let status = if i.is_up() { "●" } else { "○" };
-        let mac = i.mac.map_or("-".to_string(), |m| m.to_string());
         let ips = i.ips.iter().map(|ip| ip.to_string()).collect::<Vec<_>>().join(", ");
         
+        // Compact view
         let content = Line::from(vec![
             Span::styled(format!(" {} ", status), Style::default().fg(name_color)),
-            Span::styled(format!("{:<10}", i.name), Style::default().fg(THEME.fg).add_modifier(Modifier::BOLD)),
-            Span::styled(format!(" {:<20} ", mac), Style::default().fg(THEME.muted)),
+            Span::styled(format!("{:<8}", i.name), Style::default().fg(THEME.fg).add_modifier(Modifier::BOLD)),
             Span::styled(ips, Style::default().fg(THEME.secondary)),
         ]);
         ListItem::new(content).bg(THEME.bg)
     }).collect();
     
     f.render_widget(List::new(items).block(block), list_area);
+
+    // Top ASNs
+    let asn_area = bottom_chunks[1];
+    let block_asn = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(THEME.border))
+        .bg(THEME.bg)
+        .title(Span::styled(" Top ASNs ", Style::default().fg(THEME.muted)));
+
+    // Count ASNs
+    use std::collections::HashMap;
+    let mut asn_counts: HashMap<String, usize> = HashMap::new();
+    for c in app.active_connections.values() {
+        if !c.asn_org.is_empty() && c.asn_org != "Unknown" {
+             *asn_counts.entry(c.asn_org.clone()).or_insert(0) += 1;
+        }
+    }
+    let mut asn_vec: Vec<(&String, &usize)> = asn_counts.iter().collect();
+    asn_vec.sort_by(|a, b| b.1.cmp(a.1));
+
+    let asn_items: Vec<ListItem> = asn_vec.iter().take(5).map(|(org, count)| {
+        ListItem::new(Line::from(vec![
+            Span::styled(format!(" {:<3} ", count), Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("{}", org), Style::default().fg(THEME.fg)),
+        ]))
+    }).collect();
+
+    f.render_widget(List::new(asn_items).block(block_asn), asn_area);
 }
 
 fn render_ping(f: &mut Frame, app: &App, area: Rect) {
@@ -712,27 +798,22 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
         f.set_cursor_position((chunks[0].x + app.ping_input.visual_cursor() as u16 + 1, chunks[0].y + 1));
     }
 
-    // Ping Content
-    let content_chunks = Layout::default()
+    // Ping Content: List + Stats + Graph
+    let content_area = chunks[1];
+    
+    // Split Top (List+Stats) and Bottom (Graph)
+    let content_split = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-        .split(chunks[1]);
+        .split(content_area);
 
-    let ping_data: Vec<(f64, f64)> = app.ping_rtt_history.iter().enumerate().map(|(i, &v)| (i as f64, v)).collect();
-    let ping_max = app.ping_rtt_history.iter().max_by(|a, b| a.total_cmp(b)).unwrap_or(&100.0).max(50.0) * 2.0;
-
-    let chart = Chart::new(vec![
-        Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
-    ])
-    .block(Block::default().title(" RTT History ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
-    .x_axis(Axis::default().bounds([0.0, 100.0]).style(Style::default().fg(THEME.muted)))
-    .y_axis(Axis::default().bounds([0.0, ping_max as f64]).style(Style::default().fg(THEME.muted)));
-    
-    f.render_widget(chart, content_chunks[1]);
-    
-    let list_area = content_chunks[0];
+    let top_split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
+        .split(content_split[0]);
 
     // Results List
+    let list_area = top_split[0];
     let items: Vec<ListItem> = app.ping_history.iter().rev().map(|res| {
          match res {
             Ok(r) => {
@@ -755,6 +836,67 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
         .border_style(Style::default().fg(THEME.border));
         
     f.render_widget(List::new(items).block(list_block).style(Style::default().fg(THEME.fg)), list_area);
+
+    // Stats Logic
+    let stats_area = top_split[1];
+    let mut min = 9999.0;
+    let mut max = 0.0;
+    let mut avg = 0.0;
+    let mut count = 0;
+    let mut loss = 0;
+    let mut total = 0;
+    
+    // We iterate history to calc stats. 
+    // Note: app.ping_history is limited to 50 items. 
+    // This gives "Recent Stats" which is good.
+    for res in &app.ping_history {
+        total += 1;
+        match res {
+            Ok(r) => {
+                let t = r.time.as_secs_f64() * 1000.0;
+                if t < min { min = t; }
+                if t > max { max = t; }
+                avg += t;
+                count += 1;
+            },
+            Err(_) => {
+                loss += 1;
+            }
+        }
+    }
+    if count > 0 { avg /= count as f64; } else { min = 0.0; }
+    let loss_pct = if total > 0 { (loss as f64 / total as f64) * 100.0 } else { 0.0 };
+
+    let stats_block = Block::default()
+        .title(" Recent Stats ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(THEME.secondary));
+    
+    let stats_text = vec![
+        Line::from(vec![Span::raw("Sent: "), Span::styled(format!("{}", total), Style::default().fg(THEME.fg).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::raw("Loss: "), Span::styled(format!("{:.1}%", loss_pct), Style::default().fg(if loss > 0 { THEME.error } else { THEME.success }))]),
+        Line::from(""),
+        Line::from(vec![Span::raw("Min:  "), Span::styled(format!("{:.1}ms", min), Style::default().fg(THEME.primary))]),
+        Line::from(vec![Span::raw("Avg:  "), Span::styled(format!("{:.1}ms", avg), Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::raw("Max:  "), Span::styled(format!("{:.1}ms", max), Style::default().fg(THEME.primary))]),
+    ];
+    
+    f.render_widget(Paragraph::new(stats_text).block(stats_block), stats_area);
+
+
+    // Graph
+    let ping_data: Vec<(f64, f64)> = app.ping_rtt_history.iter().enumerate().map(|(i, &v)| (i as f64, v)).collect();
+    let ping_max = app.ping_rtt_history.iter().max_by(|a, b| a.total_cmp(b)).unwrap_or(&100.0).max(50.0) * 2.0;
+
+    let chart = Chart::new(vec![
+        Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
+    ])
+    .block(Block::default().title(" RTT History ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
+    .x_axis(Axis::default().bounds([0.0, 100.0]).style(Style::default().fg(THEME.muted)))
+    .y_axis(Axis::default().bounds([0.0, ping_max as f64]).style(Style::default().fg(THEME.muted)));
+    
+    f.render_widget(chart, content_split[1]);
 }
 
 fn render_dns(f: &mut Frame, app: &App, area: Rect) {

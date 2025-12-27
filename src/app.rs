@@ -88,6 +88,7 @@ pub struct App {
     pub arpscan_active: bool,
     pub arpscan_rx: Option<crossbeam::channel::Receiver<String>>,
     pub arpscan_output: VecDeque<String>,
+    pub arpscan_results: Vec<arpscan::ArpEntry>,
     pub arpscan_scroll: u16,
 
     // ASN / Connections
@@ -173,7 +174,8 @@ impl App {
             arpscan_input: Input::default(),
             arpscan_active: false,
             arpscan_rx: None,
-            arpscan_output: VecDeque::with_capacity(1000),
+            arpscan_output: VecDeque::with_capacity(100), // Keep for logs
+            arpscan_results: Vec::new(), // Structured data
             arpscan_scroll: 0,
 
             geoip_reader: geoip::GeoIpReader::new(include_bytes!("../GeoLite2-ASN_20251224/GeoLite2-ASN.mmdb")).ok(),
@@ -407,10 +409,27 @@ impl App {
 
         if let Some(rx) = &self.arpscan_rx {
              while let Ok(line) = rx.try_recv() {
-                 self.arpscan_output.push_back(line);
-                 if self.arpscan_output.len() > 1000 {
+                 self.arpscan_output.push_back(line.clone());
+                 if self.arpscan_output.len() > 100 {
                      self.arpscan_output.pop_front();
-                }
+                 }
+                 
+                 // Parse for structured data
+                 // Output format: <IP>\t<MAC>\t<Vendor>
+                 let parts: Vec<&str> = line.split_whitespace().collect();
+                 if parts.len() >= 2 {
+                     if let Ok(_) = parts[0].parse::<IpAddr>() {
+                         let ip = parts[0].to_string();
+                         let mac = parts[1].to_string();
+                         let vendor = if parts.len() > 2 {
+                             parts[2..].join(" ")
+                         } else {
+                             "Unknown".to_string()
+                         };
+                         
+                         self.arpscan_results.push(arpscan::ArpEntry { ip, mac, vendor });
+                     }
+                 }
              }
         }
 
@@ -598,6 +617,7 @@ impl App {
         if target.is_empty() { return; }
 
         self.arpscan_output.clear();
+        self.arpscan_results.clear();
         self.arpscan_output.push_back(format!("Starting arp-scan with args: {}", target));
         
         // Use a channel for async output

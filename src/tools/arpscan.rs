@@ -2,6 +2,13 @@ use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use crossbeam::channel::Sender;
 
+#[derive(Clone, Debug)]
+pub struct ArpEntry {
+    pub ip: String,
+    pub mac: String,
+    pub vendor: String,
+}
+
 pub struct ArpScanTask {
     pub target: String,
     pub tx: Sender<String>,

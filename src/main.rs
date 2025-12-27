@@ -66,6 +66,21 @@ async fn run_app<B: ratatui::backend::Backend>(
             let evt = event::read()?;
             match evt {
                 Event::Key(key) => {
+                    // Quick Tab Switching (Alt + 1-8)
+                    if key.modifiers.contains(event::KeyModifiers::ALT) {
+                        match key.code {
+                            KeyCode::Char('1') => { app.current_screen = CurrentScreen::Dashboard; continue; }
+                            KeyCode::Char('2') => { app.current_screen = CurrentScreen::Ping; continue; }
+                            KeyCode::Char('3') => { app.current_screen = CurrentScreen::Dns; continue; }
+                            KeyCode::Char('4') => { app.current_screen = CurrentScreen::Sniffer; continue; }
+                            KeyCode::Char('5') => { app.current_screen = CurrentScreen::Mtr; continue; }
+                            KeyCode::Char('6') => { app.current_screen = CurrentScreen::Nmap; continue; }
+                            KeyCode::Char('7') => { app.current_screen = CurrentScreen::ArpScan; continue; }
+                            KeyCode::Char('8') => { app.current_screen = CurrentScreen::Connections; continue; }
+                            _ => {}
+                        }
+                    }
+
                     if app.show_options {
                          if key.kind == KeyEventKind::Press {
                              match key.code {
@@ -114,7 +129,7 @@ async fn run_app<B: ratatui::backend::Backend>(
                                              CurrentScreen::Nmap => {
                                                   for c in val.chars() {
                                                      app.nmap_input.handle_event(&Event::Key(crossterm::event::KeyEvent::new(KeyCode::Char(c), crossterm::event::KeyModifiers::NONE)));
-                                                  }
+                                                 }
                                               }
                                               CurrentScreen::ArpScan => {
                                                   for c in val.chars() {
@@ -148,35 +163,35 @@ async fn run_app<B: ratatui::backend::Backend>(
                                 app.quit();
                                 handled = true;
                             }
-                            KeyCode::Char('D') => {
+                            KeyCode::Char('D') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Dashboard;
                                 handled = true;
                             }
-                            KeyCode::Char('P') => {
+                            KeyCode::Char('P') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Ping;
                                 handled = true;
                             }
-                            KeyCode::Char('N') => {
+                            KeyCode::Char('N') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Dns;
                                 handled = true;
                             }
-                            KeyCode::Char('S') => {
+                            KeyCode::Char('S') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Sniffer;
                                 handled = true;
                             }
-                            KeyCode::Char('M') => {
+                            KeyCode::Char('M') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Mtr;
                                 handled = true;
                             }
-                            KeyCode::Char('R') => {
+                            KeyCode::Char('R') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Nmap;
                                 handled = true;
                             }
-                            KeyCode::Char('A') => {
+                             KeyCode::Char('A') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::ArpScan;
                                 handled = true;
                             }
-                            KeyCode::Char('C') => {
+                            KeyCode::Char('C') if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
                                 app.current_screen = CurrentScreen::Connections;
                                 handled = true;
                             }
@@ -295,6 +310,21 @@ async fn run_app<B: ratatui::backend::Backend>(
                                         _ => {
                                             if !app.nmap_active {
                                                 app.nmap_input.handle_event(&Event::Key(key));
+                                            }
+                                        }
+                                    }
+                                }
+                                CurrentScreen::ArpScan => {
+                                    match key.code {
+                                        KeyCode::Enter => {
+                                            app.start_arpscan();
+                                        }
+                                        KeyCode::Esc => {
+                                            app.stop_arpscan();
+                                        }
+                                        _ => {
+                                            if !app.arpscan_active {
+                                                app.arpscan_input.handle_event(&Event::Key(key));
                                             }
                                         }
                                     }
