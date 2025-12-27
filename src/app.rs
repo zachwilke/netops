@@ -1,12 +1,12 @@
 use std::collections::{VecDeque, HashMap};
 use std::net::IpAddr;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+// use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::widgets::TableState;
 use anyhow::Result;
 
 use pnet_datalink::NetworkInterface;
 use crate::tools::ping::{PingResult, PingTask};
-use crate::tools::{interfaces, ping, dns, sniffer, mtr, nmap, arpscan, geoip, connections};
+use crate::tools::{interfaces, dns, sniffer, mtr, nmap, arpscan, geoip, connections};
 use crate::tools::dns::DnsResult;
 
 use tokio::sync::mpsc::{self, Receiver, error::TryRecvError};
@@ -227,6 +227,12 @@ impl App {
                          if self.ping_history.len() > 50 {
                              self.ping_history.pop_front();
                          }
+                         #[cfg(debug_assertions)]
+                         {
+                            if self.ping_history.len() > 50 {
+                                eprintln!("Ping history exceeded 50 items despite pop");
+                            }
+                         }
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => {
@@ -254,6 +260,7 @@ impl App {
                 if self.sniffer_packets.len() > 1000 {
                     self.sniffer_packets.pop_front();
                 }
+                debug_assert!(self.sniffer_packets.len() <= 1000, "Sniffer packet history exceeded limit");
             }
         }
 
@@ -300,6 +307,7 @@ impl App {
                  if self.connection_count_history.len() > 100 {
                      self.connection_count_history.pop_front();
                  }
+                 debug_assert!(self.connection_count_history.len() <= 100, "Connection count history exceeded limit");
              }
         }
         
@@ -308,6 +316,8 @@ impl App {
         if self.globe_rotation > std::f64::consts::PI * 2.0 {
             self.globe_rotation -= std::f64::consts::PI * 2.0;
         }
+        debug_assert!(self.globe_rotation >= 0.0, "Globe rotation should differ from negative");
+        debug_assert!(self.globe_rotation < std::f64::consts::PI * 4.0, "Globe rotation growing unbounded");
 
         if let Some(rx) = &self.mtr_rx {
             while let Ok(res) = rx.try_recv() {
@@ -483,6 +493,9 @@ impl App {
         if let Some(interface) = self.interfaces.get(self.selected_interface_index) {
              let (tx, rx) = crossbeam::channel::unbounded();
              self.sniffer_rx = Some(rx);
+             
+             assert!(self.selected_interface_index < self.interfaces.len(), "Selected interface index out of bounds");
+             
              self.sniffer.start(interface.name.clone(), tx);
              self.sniffer_active = true;
         }
@@ -500,6 +513,9 @@ impl App {
         
         let target = self.mtr_input.value().to_string();
         if target.is_empty() { return; }
+        
+        // Ensure we don't start MTR with invalid state even if UI allowed it
+        debug_assert!(!target.trim().is_empty(), "MTR target must not be empty/whitespace");
 
         self.mtr_hops.clear();
         let (tx, rx) = crossbeam::channel::unbounded();

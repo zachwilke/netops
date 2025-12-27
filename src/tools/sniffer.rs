@@ -193,7 +193,7 @@ impl Sniffer {
                             }
                         }
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         // eprintln!("An error occurred while reading: {}", e);
                     }
                 }
@@ -214,7 +214,7 @@ fn parse_packet(ethernet: &EthernetPacket) -> Option<PacketSummary> {
             if let Some(header) = Ipv4Packet::new(ethernet.payload()) {
                 let source = header.get_source().to_string();
                 let dest = header.get_destination().to_string();
-                let protocol = match header.get_next_level_protocol() {
+                let _protocol = match header.get_next_level_protocol() {
                     IpNextHeaderProtocols::Tcp => "TCP",
                     IpNextHeaderProtocols::Udp => "UDP",
                     IpNextHeaderProtocols::Icmp => "ICMP",

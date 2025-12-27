@@ -213,8 +213,8 @@ fn probe(target: IpAddr, ttl: u8) -> std::io::Result<MtrResult> {
     socket.send_to(&packet, &sock_addr.into())?;
     
     // Listen for reply
-    let mut buf = [0u8; 1024]; // SAFETY: buf is initialized
-    let mut buf = unsafe { std::mem::MaybeUninit::new(buf).assume_init() }; 
+    // let mut buf = [0u8; 1024]; // SAFETY: buf is initialized
+    // let mut buf = unsafe { std::mem::MaybeUninit::new(buf).assume_init() }; 
     // Actually Socket2 recv_from takes MaybeUninit? No, &mut [MaybeUninit<u8>].
     // Let's us regular buffer for simpler API if possible, or use `recv_from` with initialized buf.
     // socket2 0.4 vs 0.5 diffs. latest socket2 `recv_from` takes `&mut [MaybeUninit<u8>]`.
@@ -222,7 +222,7 @@ fn probe(target: IpAddr, ttl: u8) -> std::io::Result<MtrResult> {
     let mut recv_buf = [std::mem::MaybeUninit::new(0u8); 1024];
 
     match socket.recv_from(&mut recv_buf) {
-        Ok((size, addr)) => {
+        Ok((_size, addr)) => {
             let rtt = start.elapsed();
             let addr = addr.as_socket().map(|s| s.ip());
             

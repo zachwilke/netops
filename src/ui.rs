@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs, BorderType, Clear, Dataset, Chart, Axis, GraphType},
+    widgets::{Block, Borders, List, ListItem, Paragraph, BorderType, Clear, Dataset, Chart, Axis, GraphType},
     symbols,
     Frame,
 };
@@ -40,6 +40,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
             .as_ref(),
         )
         .split(size);
+    debug_assert_eq!(chunks.len(), 3, "Main layout should have 3 chunks");
 
     // --- Header ---
     let header_area = chunks[0];
@@ -47,6 +48,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         .direction(Direction::Horizontal)
         .constraints([Constraint::Length(10), Constraint::Min(1)].as_ref())
         .split(header_area);
+    debug_assert_eq!(header_chunks.len(), 2);
 
     // Logo
     let logo_style = Style::default().fg(THEME.primary).add_modifier(Modifier::BOLD);
@@ -255,7 +257,7 @@ fn render_mtr(f: &mut Frame, app: &mut App, area: Rect) {
         .split(area);
 
     // Controls
-    let status_color = if app.mtr_active { THEME.success } else { THEME.muted };
+    let _status_color = if app.mtr_active { THEME.success } else { THEME.muted };
     let input_block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -302,7 +304,7 @@ fn render_mtr(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Length(8), Constraint::Length(8), Constraint::Length(8)
     ].as_ref())
     .header(header)
-    .highlight_style(Style::default().bg(THEME.secondary).fg(THEME.bg).add_modifier(Modifier::BOLD)) // Assuming selection added to theme or reuse primary
+    .row_highlight_style(Style::default().bg(THEME.secondary).fg(THEME.bg).add_modifier(Modifier::BOLD)) // Assuming selection added to theme or reuse primary
     .highlight_symbol(">"); 
     // Wait, Theme doesn't have selection. I'll use primary.
     // .highlight_style(Style::default().bg(THEME.primary).fg(THEME.bg));
@@ -318,8 +320,8 @@ fn render_mtr(f: &mut Frame, app: &mut App, area: Rect) {
             Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&history)
         ])
         .block(Block::default().title(format!(" Latency: {} ", hop.host)).borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
-        .x_axis(Axis::default().bounds([0.0, 100.0]))
-        .y_axis(Axis::default().bounds([0.0, max_lat as f64]));
+        .x_axis(Axis::default().bounds([0.0, 100.0]).style(Style::default().fg(THEME.muted)))
+        .y_axis(Axis::default().bounds([0.0, max_lat as f64]).style(Style::default().fg(THEME.muted)));
         f.render_widget(chart, content_chunks[1]);
     } else {
         f.render_widget(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).style(Style::default().fg(THEME.muted)), content_chunks[1]);
@@ -607,8 +609,8 @@ fn render_dashboard(f: &mut Frame, app: &App, area: Rect) {
         let min_val = if data2.is_some() { -max_val } else { 0.0 };
 
         let chart = Chart::new(datasets)
-            .x_axis(Axis::default().bounds([0.0, 100.0]))
-            .y_axis(Axis::default().bounds([min_val, max_val]));
+            .x_axis(Axis::default().bounds([0.0, 100.0]).style(Style::default().fg(THEME.muted)))
+            .y_axis(Axis::default().bounds([min_val, max_val]).style(Style::default().fg(THEME.muted)));
         
         f.render_widget(chart, chart_area);
     };
@@ -709,8 +711,8 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
         Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
     ])
     .block(Block::default().title(" RTT History ").borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)))
-    .x_axis(Axis::default().bounds([0.0, 100.0]))
-    .y_axis(Axis::default().bounds([0.0, ping_max as f64]));
+    .x_axis(Axis::default().bounds([0.0, 100.0]).style(Style::default().fg(THEME.muted)))
+    .y_axis(Axis::default().bounds([0.0, ping_max as f64]).style(Style::default().fg(THEME.muted)));
     
     f.render_widget(chart, content_chunks[1]);
     
