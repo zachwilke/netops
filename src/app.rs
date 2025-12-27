@@ -47,7 +47,7 @@ pub struct App {
     // Ping State
     pub ping_input: Input,
     pub ping_history: VecDeque<Result<PingResult, String>>,
-    pub ping_rtt_history: VecDeque<u64>,
+    pub ping_rtt_history: VecDeque<f64>,
     pub ping_rx: Option<Receiver<Result<PingResult, String>>>,
     pub is_pinging: bool,
 
@@ -64,6 +64,7 @@ pub struct App {
     pub sniffer_rx: Option<crossbeam::channel::Receiver<sniffer::PacketSummary>>,
     pub sniffer_packets: VecDeque<sniffer::PacketSummary>,
     pub sniffer_active: bool,
+    pub sniffer_filter_input: Input,
     pub selected_interface_index: usize,
 
     // MTR State
@@ -150,6 +151,7 @@ impl App {
             sniffer_rx: None,
             sniffer_packets: VecDeque::with_capacity(1000),
             sniffer_active: false,
+            sniffer_filter_input: Input::default(),
             selected_interface_index: 0,
 
             mtr_input: Input::default(),
@@ -213,7 +215,7 @@ impl App {
                 match rx.try_recv() {
                     Ok(result) => {
                          if let Ok(ref res) = result {
-                             self.ping_rtt_history.push_back(res.time.as_millis() as u64);
+                             self.ping_rtt_history.push_back(res.time.as_secs_f64() * 1000.0);
                              if self.ping_rtt_history.len() > 100 {
                                  self.ping_rtt_history.pop_front();
                              }
@@ -496,7 +498,8 @@ impl App {
              
              assert!(self.selected_interface_index < self.interfaces.len(), "Selected interface index out of bounds");
              
-             self.sniffer.start(interface.name.clone(), tx);
+             let filter = self.sniffer_filter_input.value().to_string();
+             self.sniffer.start(interface.name.clone(), tx, filter);
              self.sniffer_active = true;
         }
     }
@@ -662,6 +665,7 @@ impl App {
         }
 
         self.ping_history.clear();
+        self.ping_rtt_history.clear();
         let (tx, rx) = mpsc::channel(100);
         self.ping_rx = Some(rx);
         self.is_pinging = true;

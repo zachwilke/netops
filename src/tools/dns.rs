@@ -1,15 +1,21 @@
 use hickory_resolver::TokioAsyncResolver;
 use hickory_resolver::config::*;
 use hickory_resolver::proto::rr::RecordType;
-use std::net::IpAddr;
+// Removed unused import: std::net::IpAddr
+
+#[derive(Debug, Clone)]
+pub struct DnsRecord {
+    pub value: String,
+    pub ttl: u32,
+}
 
 #[derive(Debug, Clone)]
 pub enum DnsResult {
-    A(Vec<IpAddr>),
-    AAAA(Vec<IpAddr>),
-    MX(Vec<(u16, String)>),
-    TXT(Vec<String>),
-    NS(Vec<String>),
+    A(Vec<DnsRecord>),
+    AAAA(Vec<DnsRecord>),
+    MX(Vec<DnsRecord>),
+    TXT(Vec<DnsRecord>),
+    NS(Vec<DnsRecord>),
 }
 
 pub async fn resolve(domain: &str, record_type: RecordType) -> Result<DnsResult, String> {
@@ -22,24 +28,30 @@ pub async fn resolve(domain: &str, record_type: RecordType) -> Result<DnsResult,
         Ok(response) => {
             match record_type {
                 RecordType::A => {
-                    let ips: Vec<IpAddr> = response.iter().filter_map(|r| r.as_a().map(|a| IpAddr::V4(a.0))).collect();
-                    Ok(DnsResult::A(ips))
+                    let recs: Vec<DnsRecord> = response.records().iter().filter_map(|r| r.data().and_then(|d| d.as_a()).map(|a| DnsRecord { value: a.0.to_string(), ttl: r.ttl() })).collect();
+                    Ok(DnsResult::A(recs))
                 },
                 RecordType::AAAA => {
-                    let ips: Vec<IpAddr> = response.iter().filter_map(|r| r.as_aaaa().map(|a| IpAddr::V6(a.0))).collect();
-                    Ok(DnsResult::AAAA(ips))
+                    let recs: Vec<DnsRecord> = response.records().iter().filter_map(|r| r.data().and_then(|d| d.as_aaaa()).map(|a| DnsRecord { value: a.0.to_string(), ttl: r.ttl() })).collect();
+                    Ok(DnsResult::AAAA(recs))
                 },
                 RecordType::MX => {
-                    let mxs: Vec<(u16, String)> = response.iter().filter_map(|r| r.as_mx().map(|mx| (mx.preference(), mx.exchange().to_string()))).collect();
-                    Ok(DnsResult::MX(mxs))
+                    let recs: Vec<DnsRecord> = response.records().iter().filter_map(|r| r.data().and_then(|d| d.as_mx()).map(|mx| 
+                        DnsRecord { value: format!("{} {}", mx.preference(), mx.exchange()), ttl: r.ttl() }
+                    )).collect();
+                    Ok(DnsResult::MX(recs))
                 },
                 RecordType::TXT => {
-                     let txts: Vec<String> = response.iter().filter_map(|r| r.as_txt().map(|txt| txt.to_string())).collect();
-                     Ok(DnsResult::TXT(txts))
+                     let recs: Vec<DnsRecord> = response.records().iter().filter_map(|r| r.data().and_then(|d| d.as_txt()).map(|txt| 
+                        DnsRecord { value: txt.to_string(), ttl: r.ttl() }
+                     )).collect();
+                     Ok(DnsResult::TXT(recs))
                 },
                 RecordType::NS => {
-                    let nss: Vec<String> = response.iter().filter_map(|r| r.as_ns().map(|ns| ns.to_string())).collect();
-                    Ok(DnsResult::NS(nss))
+                    let recs: Vec<DnsRecord> = response.records().iter().filter_map(|r| r.data().and_then(|d| d.as_ns()).map(|ns| 
+                        DnsRecord { value: ns.to_string(), ttl: r.ttl() }
+                    )).collect();
+                    Ok(DnsResult::NS(recs))
                 },
                 _ => Err("Unsupported record type".to_string()),
             }

@@ -144,39 +144,39 @@ async fn run_app<B: ratatui::backend::Backend>(
                      if key.kind == KeyEventKind::Press {
                         let mut handled = false;
                         match key.code {
-                            KeyCode::Char('q') => {
+                            KeyCode::Char('Q') => {
                                 app.quit();
                                 handled = true;
                             }
-                            KeyCode::Char('d') => {
+                            KeyCode::Char('D') => {
                                 app.current_screen = CurrentScreen::Dashboard;
                                 handled = true;
                             }
-                            KeyCode::Char('p') => {
+                            KeyCode::Char('P') => {
                                 app.current_screen = CurrentScreen::Ping;
                                 handled = true;
                             }
-                            KeyCode::Char('n') => {
+                            KeyCode::Char('N') => {
                                 app.current_screen = CurrentScreen::Dns;
                                 handled = true;
                             }
-                            KeyCode::Char('s') => {
+                            KeyCode::Char('S') => {
                                 app.current_screen = CurrentScreen::Sniffer;
                                 handled = true;
                             }
-                            KeyCode::Char('m') => {
+                            KeyCode::Char('M') => {
                                 app.current_screen = CurrentScreen::Mtr;
                                 handled = true;
                             }
-                            KeyCode::Char('r') => {
+                            KeyCode::Char('R') => {
                                 app.current_screen = CurrentScreen::Nmap;
                                 handled = true;
                             }
-                            KeyCode::Char('a') => {
+                            KeyCode::Char('A') => {
                                 app.current_screen = CurrentScreen::ArpScan;
                                 handled = true;
                             }
-                            KeyCode::Char('c') => {
+                            KeyCode::Char('C') => {
                                 app.current_screen = CurrentScreen::Connections;
                                 handled = true;
                             }
@@ -249,7 +249,11 @@ async fn run_app<B: ratatui::backend::Backend>(
                                                 app.selected_interface_index += 1;
                                             }
                                         }
-                                        _ => {}
+                                        _ => {
+                                            if !app.sniffer_active {
+                                                app.sniffer_filter_input.handle_event(&Event::Key(key));
+                                            }
+                                        }
                                     }
                                 }
                                 CurrentScreen::Mtr => {

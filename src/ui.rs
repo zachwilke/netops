@@ -185,7 +185,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
     
     let mut text = vec![
         Line::from(vec![Span::styled(" Global Keys ", Style::default().fg(THEME.accent).add_modifier(Modifier::BOLD))]),
-        Line::from(" [D,P,N,S,M,R,C] Switch Tab"),
+        Line::from(" [Shift + D,P,N,S,M,R,C] Switch Tab"),
         Line::from(" [H] or [?]      Toggle Help"),
         Line::from(" [Ctrl+F]        Tool Options/Flags"),
         Line::from(" [Q]             Quit"),
@@ -201,6 +201,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
             " Ping Tool ",
             " [Enter]  Start Ping",
             " [Esc]    Stop",
+            " [Graph]  Real-time Latency (Bottom)",
             " Flags: -i <sec> -s <bytes> -c <count>",
             " Ex: google.com -i 0.5 -c 10",
         ],
@@ -213,6 +214,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
             " Packet Sniffer ",
             " [Enter]      Start/Stop Capture",
             " [Left/Right] Select Interface",
+            " [Filter]     Type to filter (Src/Dst/Proto)",
         ],
         CurrentScreen::Mtr => vec![
             " My Traceroute (MTR) ",
@@ -236,6 +238,7 @@ fn render_help(f: &mut Frame, app: &App, area: Rect) {
         CurrentScreen::Connections => vec![
              " Active Connections ",
              " Shows live netstat info with ASN data.",
+             " [Globe] Real-time World Map",
              " refresh rate: 2s",
         ],
     };
@@ -348,6 +351,18 @@ fn render_sniffer(f: &mut Frame, app: &App, area: Rect) {
     ]);
     
     f.render_widget(Paragraph::new(info_text).block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(THEME.border)).title(" Sniffer ")), chunks[0]);
+    
+    // Controls 2 (Filter)
+    let filter_area = Rect { x: chunks[0].x + 40, y: chunks[0].y, width: chunks[0].width.saturating_sub(40), height: 3 };
+    let filter_block = Block::default().title(" Filter ").borders(Borders::LEFT);
+    f.render_widget(Paragraph::new(app.sniffer_filter_input.value()).block(filter_block).style(Style::default().fg(THEME.fg)), filter_area);
+    
+    if !app.sniffer_active {
+         f.set_cursor_position((
+            filter_area.x + 1 + app.sniffer_filter_input.visual_cursor() as u16,
+            filter_area.y + 1
+        ));
+    }
 
     // Table
     use ratatui::widgets::{Table, Row};
@@ -700,12 +715,11 @@ fn render_ping(f: &mut Frame, app: &App, area: Rect) {
     // Ping Content
     let content_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)].as_ref())
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(chunks[1]);
 
-    // Chart
-    let ping_data: Vec<(f64, f64)> = app.ping_rtt_history.iter().enumerate().map(|(i, &v)| (i as f64, v as f64)).collect();
-    let ping_max = app.ping_rtt_history.iter().max().unwrap_or(&100).max(&50) * 2;
+    let ping_data: Vec<(f64, f64)> = app.ping_rtt_history.iter().enumerate().map(|(i, &v)| (i as f64, v)).collect();
+    let ping_max = app.ping_rtt_history.iter().max_by(|a, b| a.total_cmp(b)).unwrap_or(&100.0).max(50.0) * 2.0;
 
     let chart = Chart::new(vec![
         Dataset::default().marker(symbols::Marker::Braille).graph_type(GraphType::Line).style(Style::default().fg(THEME.primary)).data(&ping_data)
@@ -777,11 +791,11 @@ fn render_dns(f: &mut Frame, app: &App, area: Rect) {
         match res {
             Ok(r) => {
                 let lines: Vec<ListItem> = match r {
-                    DnsResult::A(ips) => ips.iter().map(|ip| ListItem::new(ip.to_string())).collect(),
-                    DnsResult::AAAA(ips) => ips.iter().map(|ip| ListItem::new(ip.to_string())).collect(),
-                    DnsResult::MX(mxs) => mxs.iter().map(|(pref, ex)| ListItem::new(format!("{} {}", pref, ex))).collect(),
-                    DnsResult::TXT(txts) => txts.iter().map(|t| ListItem::new(t.clone())).collect(),
-                    DnsResult::NS(nss) => nss.iter().map(|ns| ListItem::new(ns.clone())).collect(),
+                    DnsResult::A(recs) => recs.iter().map(|r| ListItem::new(format!("{} (TTL: {}s)", r.value, r.ttl))).collect(),
+                    DnsResult::AAAA(recs) => recs.iter().map(|r| ListItem::new(format!("{} (TTL: {}s)", r.value, r.ttl))).collect(),
+                    DnsResult::MX(recs) => recs.iter().map(|r| ListItem::new(format!("{} (TTL: {}s)", r.value, r.ttl))).collect(),
+                    DnsResult::TXT(recs) => recs.iter().map(|r| ListItem::new(format!("{} (TTL: {}s)", r.value, r.ttl))).collect(),
+                    DnsResult::NS(recs) => recs.iter().map(|r| ListItem::new(format!("{} (TTL: {}s)", r.value, r.ttl))).collect(),
                 };
                 f.render_widget(List::new(lines).block(res_block).style(Style::default().fg(THEME.success)), chunks[2]);
             },

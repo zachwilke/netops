@@ -53,7 +53,7 @@ impl Sniffer {
         }
     }
 
-    pub fn start(&self, interface_name: String, tx: Sender<PacketSummary>) {
+    pub fn start(&self, interface_name: String, tx: Sender<PacketSummary>, filter: String) {
         let should_stop = self.should_stop.clone();
         let packet_count = self.packet_count.clone();
         let in_packets = self.in_packets.clone();
@@ -66,6 +66,9 @@ impl Sniffer {
         let udp_count = self.udp_packets.clone();
         
         should_stop.store(false, std::sync::atomic::Ordering::Relaxed);
+        
+        // Lowercase filter for case-insensitive match
+        let filter = filter.trim().to_lowercase();
         
         thread::spawn(move || {
             let interfaces = datalink::interfaces();
@@ -188,8 +191,19 @@ impl Sniffer {
 
                         let summary = parse_packet(&packet);
                         if let Some(s) = summary {
-                            if tx.send(s).is_err() {
-                                break;
+                            // Filter Logic
+                            let mut matches = true;
+                            if !filter.is_empty() {
+                                matches = s.source.to_lowercase().contains(&filter) ||
+                                          s.destination.to_lowercase().contains(&filter) ||
+                                          s.protocol.to_lowercase().contains(&filter) ||
+                                          s.info.to_lowercase().contains(&filter);
+                            }
+                            
+                            if matches {
+                                if tx.send(s).is_err() {
+                                    break;
+                                }
                             }
                         }
                     }
